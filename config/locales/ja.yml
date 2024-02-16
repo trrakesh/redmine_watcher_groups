@@ -1,0 +1,6 @@
+# Japanese strings go here for Rails i18n
+ja:
+  my_label: "My label"
+  label_issue_watcher_groups: "ウォッチャー（グループ）"
+  label_group_search: "グループを検索："
+  permission_add_issue_watcher_groups: "ウォッチャー（グループ）を追加"

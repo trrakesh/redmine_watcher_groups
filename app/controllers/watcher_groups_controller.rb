@@ -1,6 +1,6 @@
 class WatcherGroupsController < ApplicationController
 
-  before_filter :find_project
+  before_action :find_project
   # before_filter :require_login, :check_project_privacy, :only => [:watch, :unwatch]
   # before_filter :authorize, :only => [:new, :destroy]
 
@@ -8,14 +8,23 @@ class WatcherGroupsController < ApplicationController
   end
 
   def create
-    if params[:watcher_group].is_a?(Hash) && request.post?
-      group_ids = params[:watcher_group][:group_ids] || [params[:watcher_group][:group_id]]
-      group_ids.each do |group_id|
-        if Watcher.find(:all, 
-           :conditions => "watchable_type='#{@watched.class}' and watchable_id = #{@watched.id} and user_id = '#{group_id}'",
-           :limit => 1).blank?
-          # insert directly into table to avoit user type checking
-          Watcher.connection.execute("INSERT INTO `#{Watcher.table_name}` (`user_id`, `watchable_id`, `watchable_type`) VALUES (#{group_id}, #{@watched.id}, '#{@watched.class.name}')")
+    if params[:watcher_group].respond_to?(:key?) && request.post?
+      if params[:object_type] == 'issue'
+        issue = Issue.find(params[:object_id])
+        group_ids = params[:watcher_group][:group_ids] || [params[:watcher_group][:group_id]]
+
+        find_watcher_users = []
+        group_ids.each do |group_id|
+          group = Group.find(group_id)
+          @watched.set_watcher_group(group, true)
+          find_watcher_users = find_watcher_users | group.users
+        end
+        if find_watcher_users.any? and Redmine::Plugin.installed? :redmine_advanced_issue_history
+          notes = []
+          find_watcher_users.each do |user|
+            notes.append("Watcher #{user.name} was added")
+          end
+          add_system_journal(notes, issue)
         end
       end
     end
@@ -26,14 +35,31 @@ class WatcherGroupsController < ApplicationController
   end
 
   def append
-    if params[:watcher_group].is_a?(Hash)
+    if params[:watcher_group].respond_to?(:key?)
       group_ids = params[:watcher_group][:group_ids] || [params[:watcher_group][:group_id]]
-      @groups = Group.active.find_all_by_id(group_ids)
+      # @groups = Group.active.find_all_by_id(group_ids)
+      @groups = Group.active.where(id: group_ids)
     end
   end
 
   def destroy
-    @watched.set_watcher_group(Group.find(params[:group_id]), false) if request.post?
+    if request.post?
+      if params[:object_type] == 'issue'
+        group = Group.find(params[:group_id])
+        @watched.set_watcher_group(group, false) 
+        issue = Issue.find(params[:object_id])
+        group_users = group.users
+        if group_users.any?
+          if Redmine::Plugin.installed? :redmine_advanced_issue_history
+            notes = []
+            group_users.each do |user|
+              notes.append("Watcher #{user.name} was removed")
+            end
+            add_system_journal(notes, issue)
+          end
+        end
+      end
+    end
     respond_to do |format|
       format.html { redirect_to :back }
       format.js
@@ -41,7 +67,7 @@ class WatcherGroupsController < ApplicationController
   end
 
   def autocomplete_for_group
-    @groups = Group.active.like(params[:q]).find(:all, :limit => 100)
+    @groups = Group.active.like(params[:q]).all.limit(100)
     if @watched
       @groups -= @watched.watcher_groups
     end

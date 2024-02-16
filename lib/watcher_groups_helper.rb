@@ -2,7 +2,6 @@
 
 module WatcherGroupsHelper
 
-
   # Returns the css class used to identify watch links for a given +object+
   def watcher_group_css(object)
     "#{object.class.to_s.underscore}-#{object.id}-watcher_group"
@@ -11,12 +10,8 @@ module WatcherGroupsHelper
   # Displays a link to gruop's account page if active
   def link_to_group(group, options={})
     if group.is_a?(Group)
-      name = h(group.name) # (options[:format]))
-      # if group.active?  # || (User.current.admin? && user.logged?)
-      #   link_to name, user_path(user), :class => user.css_classes
-      # else
-        name
-      # end
+      name = h(group.name)
+      name
     else
       h(group.to_s)
     end
@@ -29,7 +24,6 @@ module WatcherGroupsHelper
     
     lis = object.watcher_groups.collect do |group|
       s = ''.html_safe
-      # s << avatar(user, :size => "16").to_s
       s << link_to_group(group, :class => 'group')
       if remove_allowed
         url = {:controller => 'watcher_groups',
